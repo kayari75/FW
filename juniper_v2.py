@@ -5,6 +5,7 @@ __author__ = 'Karim AYARI'
 from lxml import etree
 from io import StringIO
 import argparse
+import re
 
 
 class Juniper:
@@ -88,21 +89,56 @@ class Juniper:
             members.append(member.text)
         return members
 
-    def getRuleAddressBookMembers(self,RuleName,members):
-        for addressbook in members:
-            #print(self.AddressbookRoot+"/security-zone[name = '" + RuleName[0] + "']/address-book/address-set[name = '" + addressbook + "']/address/name")
-            #AddressMembers = tree.xpath("boolean("+self.AddressbookRoot+"/security-zone[name = '" + RuleName[0] + "']/address-book/address-set[name = '" + addressbook + "']/address/name)")
-            print(self.AddressbookRoot+"/security-zone[name = '" + RuleName[0] + "']")
-            AddressMembers = tree.xpath("boolean("+self.AddressbookRoot+"/security-zone[name = '" + RuleName[0] + "'])")
-        return AddressMembers
+    def isAddressSet(self,member):
+        isaddressset = tree.xpath("boolean(.//address-set[name='"+member+"'])")
+        return isaddressset
 
+    def isAddress(self,member):
+        isaddress = tree.xpath("boolean(.//address[name='"+member+"'])")
+        return isaddress
+
+    def getRuleAddressBookMembers(self,Policy,member):
+        addressmembers = tree.xpath(self.AddressbookRoot+"/security-zone[name = '" + Policy + "']/address-book/address-set[name = '" + member + "']/address/name")
+        f = []
+
+        for x in addressmembers:
+            f.append(x.text)
+
+        return f
+
+    def getAllObjectMembers(self,Policy,RuleMembers):
+        members = []
+        for RuleMember in RuleMembers:
+            if re.match("any",RuleMember):
+                members.append("any")
+            if junos.isAddress(RuleMember):
+                members.append(RuleMember)
+            if junos.isAddressSet(RuleMember):
+                for x in junos.getRuleAddressBookMembers(Policy,RuleMember):
+                    members.append(x)
+        return members
+
+
+    def getAddress(self,Policy,members):
+        f = []
+        for member in members:
+            if re.match("any",member):
+                f.append("any")
+                continue
+            address = tree.xpath(
+            self.AddressbookRoot + "/security-zone[name = '" + Policy
+            + "']/address-book/address[name = '" + member + "']/ip-prefix/text()")
+            f.append(address[0])
+
+        return f
 
 
 
 
 junos = Juniper('firewall')
 
-junos.loadxml("E:/PY/temp/Junos/THSRAHNUNFW01P.xml")
+#junos.loadxml("E:/PY/temp/Junos/THSRAHNUNFW01P.xml")
+junos.loadxml("/run/media/karim/Lexar/PY/temp/Junos/THSRAHNUNFW01P.xml")
 junos.PoliciesRoot="/rpc-reply/configuration/security/policies/policy"
 junos.AddressbookRoot="/rpc-reply/configuration/security/zones"
 
@@ -126,19 +162,35 @@ while PolicyRootCounter <= PolicyRootNumber:
         RuleLog = junos.getRuleLog(PolicyRootCounter,rules_counter)
         RuleSourceMembers = junos.getRuleMembers(PolicyRootCounter,rules_counter,"source-address")
         RuleDestinationMembers = junos.getRuleMembers(PolicyRootCounter,rules_counter,"destination-address")
-        RuleSourceAddresses = junos.getRuleAddressBookMembers(RuleName,RuleSourceMembers)
+
+        src = junos.getAllObjectMembers(PolicyFrom[0],RuleSourceMembers)
+        dst = junos.getAllObjectMembers(PolicyTo[0],RuleDestinationMembers)
+
+        RuleSourceAddresses = junos.getAddress(PolicyFrom[0],src)
+        RuleDestinationAddresses = junos.getAddress(PolicyTo[0],dst)
+
+        print(RuleDestinationAddresses)
+
+
+
+
+            #RuleSourceAddresses = junos.getRuleAddressBookMembers(PolicyTo[0],RuleSourceMember)
 
         #print("  | {}".format(RuleName))
         #print("  | {}".format(RuleActivity))
         #print("  | {}".format(RuleAction))
         #print("  | {}".format(RuleLog))
         #print("    | {}".format(RuleSourceMembers))
-        print("    | {}".format(RuleSourceAddresses))
+        #print("    | {}".format(RuleSourceAddresses))
         #print("  | {}".format(RuleDestinationMembers))
 
         rules_counter = rules_counter + 1
 
     PolicyRootCounter = PolicyRootCounter + 1
+
+
+#print(junos.getRuleAddressBookMembers('RAH_ADM_STD','G_RAH_ADM_STD_H'))
+
 
 
 
