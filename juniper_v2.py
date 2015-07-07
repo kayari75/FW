@@ -91,7 +91,9 @@ class Juniper:
     def getRuleAddressBookMembers(self,RuleName,members):
         for addressbook in members:
             #print(self.AddressbookRoot+"/security-zone[name = '" + RuleName[0] + "']/address-book/address-set[name = '" + addressbook + "']/address/name")
-            AddressMembers = tree.xpath("boolean("+self.AddressbookRoot+"/security-zone[name = '" + RuleName[0] + "']/address-book/address-set[name = '" + addressbook + "']/address/name)")
+            #AddressMembers = tree.xpath("boolean("+self.AddressbookRoot+"/security-zone[name = '" + RuleName[0] + "']/address-book/address-set[name = '" + addressbook + "']/address/name)")
+            print(self.AddressbookRoot+"/security-zone[name = '" + RuleName[0] + "']")
+            AddressMembers = tree.xpath("boolean("+self.AddressbookRoot+"/security-zone[name = '" + RuleName[0] + "'])")
         return AddressMembers
 
 
@@ -102,7 +104,6 @@ junos = Juniper('firewall')
 
 junos.loadxml("E:/PY/temp/Junos/THSRAHNUNFW01P.xml")
 junos.PoliciesRoot="/rpc-reply/configuration/security/policies/policy"
-
 junos.AddressbookRoot="/rpc-reply/configuration/security/zones"
 
 #security-zone[@name = '" + zone
