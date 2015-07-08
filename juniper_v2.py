@@ -4,7 +4,6 @@ __author__ = 'Karim AYARI'
 
 from lxml import etree
 from io import StringIO
-import argparse
 import re
 
 
@@ -16,15 +15,32 @@ class Juniper:
         self.policies_root_count = 0
         self.PoliciesRoot = ""
         self.AddressbookRoot = ""
+        self.ApplicationsRoot = ""
         self.tree = ""
+        self.data = {}
 
-    def csvheader(self):
+    @staticmethod
+    def csvheader():
         print(
             "'name';'from-zone-name';'to-zone-name';'source-address';'destination-address';"
             "'application';'action';'inactive';'log'")
-        return True
 
-    def loadxml(self,filename):
+        return 0
+
+    def csvline(self):
+        for d in self.data['RuleDestinationAddresses']:
+            for s in self.data['RuleSourceAddresses']:
+                for p in self.data['RuleApplications']:
+                    print("'{}';'{}';'{}';'{}';'{}';'{}';'{}';'{}';'{}'".format(self.data['RuleName'],
+                                                                                self.data['PolicyFrom'],
+                                                                                self.data['PolicyTo'], s,
+                                                                                d, p, self.data['RuleAction'],
+                                                                                self.data['RuleActivity'],
+                                                                                self.data['RuleLog']))
+        return None
+
+    @staticmethod
+    def loadxml(filename):
         global tree
         file = open(filename, 'r')
         xml = file.read()
@@ -33,72 +49,74 @@ class Juniper:
         return True
 
     def getPolicyRootNumber(self):
-        policies_root_number = tree.xpath("count("+self.PoliciesRoot+")")
+        policies_root_number = tree.xpath("count(" + self.PoliciesRoot + ")")
         return policies_root_number
 
-    def getRulesNumber(self,PolicyIndex):
-        policy_number = tree.xpath("count("+self.PoliciesRoot+"[" + str(PolicyIndex) + "]/policy)")
+    def getRulesNumber(self, PolicyIndex):
+        policy_number = tree.xpath("count(" + self.PoliciesRoot + "[" + str(PolicyIndex) + "]/policy)")
         return policy_number
 
-    def getPolicyFrom(self,PolicyIndex):
-        policies_from = tree.xpath(
-        self.PoliciesRoot+"[" + str(PolicyIndex) + "]/from-zone-name/text()")
+    def getPolicyFrom(self, PolicyIndex):
+        policies_from = tree.xpath(self.PoliciesRoot + "[" + str(PolicyIndex) + "]/from-zone-name/text()")
         return policies_from
 
-    def getPolicyTo(self,PolicyIndex):
-        policies_to = tree.xpath(self.PoliciesRoot+"[" + str(PolicyIndex) + "]/to-zone-name/text()")
+    def getPolicyTo(self, PolicyIndex):
+        policies_to = tree.xpath(self.PoliciesRoot + "[" + str(PolicyIndex) + "]/to-zone-name/text()")
         return policies_to
 
-    def getRuleName(self,PolicyIndex,RuleIndex):
+    def getRuleName(self, PolicyIndex, RuleIndex):
         policy_name = tree.xpath(
-            self.PoliciesRoot+"[" + str(PolicyIndex) + "]/policy[" + str(
+            self.PoliciesRoot + "[" + str(PolicyIndex) + "]/policy[" + str(
                 RuleIndex) + "]/name/text()")
         return policy_name
 
-    def getRuleActivity(self,PolicyIndex,RuleIndex):
+    def getRuleActivity(self, PolicyIndex, RuleIndex):
         activity = tree.xpath(
-            self.PoliciesRoot+"[" + str(PolicyIndex) + "]/policy[" + str(
+            self.PoliciesRoot + "[" + str(PolicyIndex) + "]/policy[" + str(
                 RuleIndex) + "]/@inactive")
         if len(activity) == 0:
             activity = ['active']
         return activity
 
-    def getRuleAction(self,PolicyIndex,RuleIndex):
-        actions = tree.xpath("boolean("+
-            self.PoliciesRoot+"[" + str(PolicyIndex) + "]/policy[" + str(
-                RuleIndex) + "]/then/permit)")
-        if actions == True:
+    def getRuleAction(self, PolicyIndex, RuleIndex):
+        actions = tree.xpath("boolean(" + self.PoliciesRoot + "[" + str(PolicyIndex) +
+                             "]/policy[" + str(RuleIndex) + "]/then/permit)")
+        if actions:
             actions = "permit"
         else:
             actions = "deny"
         return actions
 
-    def getRuleLog(self,PolicyIndex,RuleIndex):
-        logs = tree.xpath(self.PoliciesRoot+"[" + str(PolicyIndex) + "]/policy[" + str(
+    def getRuleLog(self, PolicyIndex, RuleIndex):
+        logs = tree.xpath(self.PoliciesRoot + "[" + str(PolicyIndex) + "]/policy[" + str(
             RuleIndex) + "]/then/log/*")
         logFlags = []
         for log in logs:
             logFlags.append(log.tag)
         return logFlags
 
-    def getRuleMembers(self,PolicyIndex,RuleIndex,Side):
+    def getRuleMembers(self, PolicyIndex, RuleIndex, Side):
         AddressesMembers = tree.xpath(
-            self.PoliciesRoot+"[" + str(PolicyIndex) + "]/policy[" + str(RuleIndex) + "]/match/" + Side )
+            self.PoliciesRoot + "[" + str(PolicyIndex) + "]/policy[" + str(RuleIndex) + "]/match/" + Side)
         members = []
         for member in AddressesMembers:
             members.append(member.text)
         return members
 
-    def isAddressSet(self,member):
-        isaddressset = tree.xpath("boolean(.//address-set[name='"+member+"'])")
+    @staticmethod
+    def isAddressSet(member):
+        isaddressset = tree.xpath("boolean(.//address-set[name='" + member + "'])")
         return isaddressset
 
-    def isAddress(self,member):
-        isaddress = tree.xpath("boolean(.//address[name='"+member+"'])")
+    @staticmethod
+    def isAddress(member):
+        isaddress = tree.xpath("boolean(.//address[name='" + member + "'])")
         return isaddress
 
-    def getRuleAddressBookMembers(self,Policy,member):
-        addressmembers = tree.xpath(self.AddressbookRoot+"/security-zone[name = '" + Policy + "']/address-book/address-set[name = '" + member + "']/address/name")
+    def getRuleAddressBookMembers(self, Policy, member):
+        addressmembers = tree.xpath(
+            self.AddressbookRoot + "/security-zone[name = '" + Policy + "']/address-book/address-set[name = '" +
+            member + "']/address/name")
         f = []
 
         for x in addressmembers:
@@ -106,98 +124,123 @@ class Juniper:
 
         return f
 
-    def getAllObjectMembers(self,Policy,RuleMembers):
+    def getAllObjectMembers(self, Policy, RuleMembers):
         members = []
         for RuleMember in RuleMembers:
-            if re.match("any",RuleMember):
+            if re.match("any", RuleMember):
                 members.append("any")
-            if junos.isAddress(RuleMember):
+            if self.isAddress(RuleMember):
                 members.append(RuleMember)
-            if junos.isAddressSet(RuleMember):
-                for x in junos.getRuleAddressBookMembers(Policy,RuleMember):
+            if self.isAddressSet(RuleMember):
+                for x in self.getRuleAddressBookMembers(Policy, RuleMember):
                     members.append(x)
         return members
 
-
-    def getAddress(self,Policy,members):
+    def getAddress(self, Policy, members):
         f = []
         for member in members:
-            if re.match("any",member):
+            if re.match("any", member):
                 f.append("any")
                 continue
             address = tree.xpath(
-            self.AddressbookRoot + "/security-zone[name = '" + Policy
-            + "']/address-book/address[name = '" + member + "']/ip-prefix/text()")
+                self.AddressbookRoot + "/security-zone[name = '" + Policy
+                + "']/address-book/address[name = '" + member + "']/ip-prefix/text()")
             f.append(address[0])
 
         return f
 
+    def getRuleApplications(self, PolicyIndex, RuleIndex):
+        applications = tree.xpath(
+            self.PoliciesRoot + "[" + str(PolicyIndex) + "]/policy[" + str(
+                RuleIndex) + "]/match/application")
+
+        apps = []
+
+        for app in applications:
+            apps.append(app.text)
+
+        return apps
+
+    @staticmethod
+    def isApplicationSet(AppName):
+        isapplicationset = tree.xpath("boolean(.//application-set[name='" + AppName + "'])")
+        return isapplicationset
+
+    @staticmethod
+    def isApplication(AppName):
+        isapplication = tree.xpath("boolean(.//application[name='" + AppName + "'])")
+        return isapplication
+
+    @staticmethod
+    def getApplicationPort(AppName):
+        if re.match("any", AppName):
+            return "any"
+        applicationport = tree.xpath(".//application[name='" + AppName + "']/destination-port/text()")
+
+        if len(applicationport) == 0:
+            """ Check term """
+            applicationport = [AppName]
+
+        applicationproto = tree.xpath(".//application[name='" + AppName + "']/protocol/text()")
+        if len(applicationproto) == 0:
+            """ Check term """
+            applicationproto = ['NA']
+
+        result = applicationport[0] + "/" + applicationproto[0]
+
+        return result
 
 
+def main():
+    junos = Juniper('FW')
 
-junos = Juniper('firewall')
+    # junos.loadxml("E:/PY/temp/Junos/THSRAHNUNFW01P.xml")
+    junos.loadxml("/run/media/karim/Lexar/PY/temp/Junos/THSRAHNUNFW01P.xml")
+    junos.PoliciesRoot = "/rpc-reply/configuration/security/policies/policy"
+    junos.AddressbookRoot = "/rpc-reply/configuration/security/zones"
+    junos.ApplicationsRoot = "/rpc-reply/configuration/applications"
 
-#junos.loadxml("E:/PY/temp/Junos/THSRAHNUNFW01P.xml")
-junos.loadxml("/run/media/karim/Lexar/PY/temp/Junos/THSRAHNUNFW01P.xml")
-junos.PoliciesRoot="/rpc-reply/configuration/security/policies/policy"
-junos.AddressbookRoot="/rpc-reply/configuration/security/zones"
+    PolicyRootNumber = junos.getPolicyRootNumber()
 
-#security-zone[@name = '" + zone
-#             + "']/address-book/address-set[name = '" + address_ + "']/address/name/text()")"
+    PolicyRootCounter = 1
 
-PolicyRootNumber = junos.getPolicyRootNumber()
+    while PolicyRootCounter <= PolicyRootNumber:
+        PolicyFrom = junos.getPolicyFrom(PolicyRootCounter)
+        PolicyTo = junos.getPolicyTo(PolicyRootCounter)
+        rules_number = junos.getRulesNumber(PolicyRootCounter)
+        RulesCounter = 1
+        while RulesCounter <= rules_number:
+            RuleName = junos.getRuleName(PolicyRootCounter, RulesCounter)
+            RuleActivity = junos.getRuleActivity(PolicyRootCounter, RulesCounter)
+            RuleAction = junos.getRuleAction(PolicyRootCounter, RulesCounter)
+            RuleLog = junos.getRuleLog(PolicyRootCounter, RulesCounter)
+            RuleSourceMembers = junos.getRuleMembers(PolicyRootCounter, RulesCounter, "source-address")
+            RuleDestinationMembers = junos.getRuleMembers(PolicyRootCounter, RulesCounter, "destination-address")
 
-PolicyRootCounter = 1
+            src = junos.getAllObjectMembers(PolicyFrom[0], RuleSourceMembers)
+            dst = junos.getAllObjectMembers(PolicyTo[0], RuleDestinationMembers)
 
-while PolicyRootCounter <= PolicyRootNumber:
-    PolicyFrom = junos.getPolicyFrom(PolicyRootCounter)
-    PolicyTo = junos.getPolicyTo(PolicyRootCounter)
-    #print("{} {}".format(PolicyFrom,PolicyTo))
-    rules_number = junos.getRulesNumber(PolicyRootCounter)
-    rules_counter = 1
-    while rules_counter <= rules_number:
-        RuleName = junos.getRuleName(PolicyRootCounter,rules_counter)
-        RuleActivity = junos.getRuleActivity(PolicyRootCounter,rules_counter)
-        RuleAction = junos.getRuleAction(PolicyRootCounter,rules_counter)
-        RuleLog = junos.getRuleLog(PolicyRootCounter,rules_counter)
-        RuleSourceMembers = junos.getRuleMembers(PolicyRootCounter,rules_counter,"source-address")
-        RuleDestinationMembers = junos.getRuleMembers(PolicyRootCounter,rules_counter,"destination-address")
+            RuleSourceAddresses = junos.getAddress(PolicyFrom[0], src)
+            RuleDestinationAddresses = junos.getAddress(PolicyTo[0], dst)
 
-        src = junos.getAllObjectMembers(PolicyFrom[0],RuleSourceMembers)
-        dst = junos.getAllObjectMembers(PolicyTo[0],RuleDestinationMembers)
+            RuleApplications = junos.getRuleApplications(PolicyRootCounter, RulesCounter)
 
-        RuleSourceAddresses = junos.getAddress(PolicyFrom[0],src)
-        RuleDestinationAddresses = junos.getAddress(PolicyTo[0],dst)
+            junos.data['PolicyFrom'] = PolicyFrom
+            junos.data['PolicyTo'] = PolicyTo
+            junos.data['RuleName'] = RuleName
+            junos.data['RuleActivity'] = RuleActivity
+            junos.data['RuleAction'] = RuleAction
+            junos.data['RuleLog'] = RuleLog
+            junos.data['RuleSourceAddresses'] = RuleSourceAddresses
+            junos.data['RuleDestinationAddresses'] = RuleDestinationAddresses
+            junos.data['RuleApplications'] = RuleApplications
 
-        print(RuleDestinationAddresses)
+            junos.csvline()
 
+            RulesCounter += 1
 
-
-
-            #RuleSourceAddresses = junos.getRuleAddressBookMembers(PolicyTo[0],RuleSourceMember)
-
-        #print("  | {}".format(RuleName))
-        #print("  | {}".format(RuleActivity))
-        #print("  | {}".format(RuleAction))
-        #print("  | {}".format(RuleLog))
-        #print("    | {}".format(RuleSourceMembers))
-        #print("    | {}".format(RuleSourceAddresses))
-        #print("  | {}".format(RuleDestinationMembers))
-
-        rules_counter = rules_counter + 1
-
-    PolicyRootCounter = PolicyRootCounter + 1
+        PolicyRootCounter += 1
 
 
-#print(junos.getRuleAddressBookMembers('RAH_ADM_STD','G_RAH_ADM_STD_H'))
-
-
-
-
-
-
-
-
-
-
-
+if __name__ == "__main__":
+    main()
